@@ -11,45 +11,48 @@ function requireAuth(req: VercelRequest, res: VercelResponse) {
 }
 
 async function openBrowser() {
-  const ws = process.env.BROWSERLESS_WS;
-  if (!ws) throw new Error("Missing BROWSERLESS_WS env var");
-  const browser = await playwright.chromium.connectOverCDP(ws);
-  const context = await browser.newContext({
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36"
-  });
-  return { browser, context };
+  let ws = process.env.BROWSERLESS_WS || "";
+  ws = ws.replace(/\/playwright(\?|$)/, "$1"); // normalize legacy URL
+  if (!ws) throw new Error("Missing BROWSERLESS_WS");
+  // Try CDP then fallback
+  try { return await playwright.chromium.connectOverCDP(ws); }
+  catch { return await playwright.chromium.connect(ws); }
 }
 
 async function applySessionCookie(context: playwright.BrowserContext) {
   const cookieJson = process.env.WEEE_SESSION_COOKIE;
   if (!cookieJson) return false;
-  try {
-    const cookies = JSON.parse(cookieJson);
-    if (Array.isArray(cookies) && cookies.length) {
-      await context.addCookies(cookies as any);
-      return true;
-    }
-  } catch {}
+  const cookies = JSON.parse(cookieJson);
+  if (Array.isArray(cookies) && cookies.length) { await context.addCookies(cookies as any); return true; }
   return false;
 }
 
-async function addItem(page: playwright.Page, query: string, qty = 1) {
+async function ensureLoggedIn(page: playwright.Page) {
   await page.goto("https://www.sayweee.com/en", { waitUntil: "domcontentloaded" });
+  const url = page.url();
+  if (/login|signin/i.test(url)) {
+    throw new Error("Weee session is not logged in (cookie expired or invalid). Update WEEE_SESSION_COOKIE.");
+  }
+}
 
+async function addItem(page: playwright.Page, query: string, qty = 1) {
+  // Search
   const searchSel = 'input[placeholder*="Search"]';
   await page.waitForSelector(searchSel, { timeout: 15000 });
   await page.fill(searchSel, query);
   await page.keyboard.press("Enter");
   await page.waitForLoadState("domcontentloaded");
 
+  // Pick first result
   const firstCard = page.locator('[data-testid*="product-card"]').first();
   if ((await firstCard.count()) === 0) return { added: false, query, reason: "No results" };
   await firstCard.click();
 
+  // Add to cart
   const addBtn = page.locator('button:has-text("Add")').first();
   await addBtn.click({ timeout: 15000 });
 
+  // Increase quantity
   if (qty > 1) {
     const plusBtn = page.locator('button[aria-label*="increase"]').first();
     for (let i = 1; i < qty; i++) { await plusBtn.click(); await page.waitForTimeout(120); }
@@ -68,10 +71,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let browser: playwright.Browser | null = null;
   try {
-    const { browser: b, context } = await openBrowser();
-    browser = b;
-    await applySessionCookie(context);
+    browser = await openBrowser();
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36"
+    });
     const page = await context.newPage();
+
+    const hadCookie = await applySessionCookie(context);
+    await ensureLoggedIn(page); // throws if cookie invalid
 
     const results = [];
     for (const it of items) {
@@ -82,9 +90,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await page.goto("https://www.sayweee.com/en/cart", { waitUntil: "domcontentloaded" });
-    const now = new Date().toISOString();
-    res.json({ status: "ok", engine: "playwright", now, items: results });
+    res.json({ status: "ok", engine: "playwright", cookieApplied: hadCookie, items: results });
   } catch (err: any) {
+    // You’ll see this in Vercel function logs
     res.status(500).json({ error: "Automation failed", detail: String(err?.message || err) });
   } finally {
     try { await browser?.close(); } catch {}
