@@ -2,7 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import playwright from "playwright-core";
 
 function requireAuth(req: VercelRequest, res: VercelResponse) {
-  const auth = (req.headers.authorization || "").replace("Bearer ", "");
+  const rawAuth = req.headers.authorization || "";
+const auth = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : rawAuth;
+
   const token = process.env.ACTIONS_BEARER_TOKEN;
 
   console.log("DEBUG requireAuth:", { auth, token, hasAuthHeader: !!req.headers.authorization });
