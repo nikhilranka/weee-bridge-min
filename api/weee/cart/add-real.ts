@@ -122,11 +122,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let browser: playwright.Browser | null = null;
   try {
-    browser = await openBrowser();
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36"
-    });
+   const { browser, context } = await openBrowser();
+
     const page = await context.newPage();
 
     const hadCookie = await applySessionCookie(context);
