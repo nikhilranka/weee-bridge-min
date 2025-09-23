@@ -11,7 +11,7 @@ function requireAuth(req: VercelRequest, res: VercelResponse) {
   return true;
 }
 
-// --- connect to remote Chromium (browserless or similar) ---
+// --- connect to remote Chromium (Browserless) ---
 async function openBrowser() {
   const ws = process.env.BROWSERLESS_WS;
   if (!ws) throw new Error("Missing BROWSERLESS_WS env var");
