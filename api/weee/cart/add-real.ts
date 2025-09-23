@@ -109,8 +109,12 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
   await firstCard.click();
 
   // Add to cart
-  const addBtn = page.locator('button:has-text("Add"), button[aria-label*="add"]').first();
-await addBtn.click({ timeout: 20000 });
+  // Match the new Weee add-to-cart button
+const addBtn = page.locator('[data-testid="btn-atc-plus"], [aria-label="add-to-cart"]').first();
+
+await addBtn.waitFor({ state: "visible", timeout: 20000 });
+await addBtn.click();
+
 
 
   // Increase quantity
