@@ -109,8 +109,9 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
   await firstCard.click();
 
   // Add to cart
-  const addBtn = page.locator('button:has-text("Add")').first();
-  await addBtn.click({ timeout: 15000 });
+  const addBtn = page.locator('button:has-text("Add"), button[aria-label*="add"]').first();
+await addBtn.click({ timeout: 20000 });
+
 
   // Increase quantity
   if (qty > 1) {
