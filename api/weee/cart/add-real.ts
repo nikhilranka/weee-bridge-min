@@ -74,7 +74,16 @@ async function applySessionCookie(context: playwright.BrowserContext) {
   const cookieJson = process.env.WEEE_SESSION_COOKIE;
   if (!cookieJson) return false;
   const cookies = JSON.parse(cookieJson);
-  if (Array.isArray(cookies) && cookies.length) { await context.addCookies(cookies as any); return true; }
+if (Array.isArray(cookies) && cookies.length) {
+  for (const c of cookies) {
+    if (!["Strict", "Lax", "None"].includes(c.sameSite)) {
+      c.sameSite = "Lax";
+    }
+  }
+  await context.addCookies(cookies as any);
+  return true;
+}
+
   return false;
 }
 
