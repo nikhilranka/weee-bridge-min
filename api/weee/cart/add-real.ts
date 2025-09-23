@@ -10,14 +10,51 @@ function requireAuth(req: VercelRequest, res: VercelResponse) {
   return true;
 }
 
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
 async function openBrowser() {
   let ws = process.env.BROWSERLESS_WS || "";
-  ws = ws.replace(/\/playwright(\?|$)/, "$1"); // normalize legacy URL
+  // Accept old-style URLs and strip '/playwright'
+  ws = ws.replace(/\/playwright(\?|$)/, "$1");
   if (!ws) throw new Error("Missing BROWSERLESS_WS");
-  // Try CDP then fallback
-  try { return await playwright.chromium.connectOverCDP(ws); }
-  catch { return await playwright.chromium.connect(ws); }
+
+  const maxAttempts = 3;
+  let lastErr: any;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      // Try standard Playwright WS connect first
+      const browser = await playwright.chromium.connect(ws, { timeout: 30000 });
+      const context = await browser.newContext({
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36"
+      });
+      return { browser, context };
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      // If connect() fails (some Browserless setups prefer CDP), try CDP immediately
+      try {
+        const browser = await playwright.chromium.connectOverCDP(ws);
+        const context = await browser.newContext({
+          userAgent:
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36"
+        });
+        return { browser, context };
+      } catch (e2: any) {
+        lastErr = e2;
+        // 429 handling: exponential backoff (500ms, 1200ms)
+        if (/429|Too Many Requests/i.test(msg) || /429|Too Many Requests/i.test(String(e2?.message || e2))) {
+          if (attempt < maxAttempts) await sleep(300 * attempt + 200 * attempt); // ~500ms, ~1.4s
+          continue;
+        }
+        // Non-429: fail fast
+        throw e2;
+      }
+    }
+  }
+  throw lastErr;
 }
+
 
 async function applySessionCookie(context: playwright.BrowserContext) {
   const cookieJson = process.env.WEEE_SESSION_COOKIE;
