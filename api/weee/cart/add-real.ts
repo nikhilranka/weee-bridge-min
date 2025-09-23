@@ -123,7 +123,15 @@ await addBtn.click();
     for (let i = 1; i < qty; i++) { await plusBtn.click(); await page.waitForTimeout(120); }
   }
 
-  const title = (await page.locator("h1, h2").first().textContent().catch(() => null))?.trim();
+  let title = await page.locator('[data-testid="product-title"]').first().textContent().catch(() => null);
+
+if (!title) {
+  // fallback: first visible h1
+  title = await page.locator('h1:visible').first().textContent().catch(() => null);
+}
+
+title = title?.trim() || query;
+
   return { added: true, query, title: title || query, qty };
 }
 
