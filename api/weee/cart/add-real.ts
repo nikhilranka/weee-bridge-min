@@ -3,11 +3,12 @@ import playwright from "playwright-core";
 
 function requireAuth(req: VercelRequest, res: VercelResponse) {
   const rawAuth = req.headers.authorization || "";
-const auth = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : rawAuth;
-
   const token = process.env.ACTIONS_BEARER_TOKEN;
 
-  console.log("DEBUG requireAuth:", { auth, token, hasAuthHeader: !!req.headers.authorization });
+  // Strip "Bearer " if present
+  const auth = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : rawAuth.trim();
+
+  console.log("DEBUG requireAuth fixed:", { rawAuth, auth, token });
 
   if (!auth && token) return true;
   if (auth && auth === token) return true;
@@ -15,6 +16,7 @@ const auth = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : rawAuth;
   res.status(401).json({ error: "Unauthorized" });
   return false;
 }
+
 
 
 
