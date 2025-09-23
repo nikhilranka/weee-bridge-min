@@ -3,18 +3,22 @@ import playwright from "playwright-core";
 
 function requireAuth(req: VercelRequest, res: VercelResponse) {
   const rawAuth = req.headers.authorization || "";
-  const token = process.env.ACTIONS_BEARER_TOKEN;
+const token = process.env.ACTIONS_BEARER_TOKEN;
 
-  // Strip "Bearer " if present
-  const auth = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : rawAuth.trim();
+// Remove ALL leading "Bearer " (case-insensitive)
+let auth = rawAuth.trim();
+while (/^Bearer\s+/i.test(auth)) {
+  auth = auth.replace(/^Bearer\s+/i, "").trim();
+}
 
-  console.log("DEBUG requireAuth fixed:", { rawAuth, auth, token });
+console.log("DEBUG requireAuth normalized:", { rawAuth, auth, token });
 
-  if (!auth && token) return true;
-  if (auth && auth === token) return true;
+if (!auth && token) return true;
+if (auth && auth === token) return true;
 
-  res.status(401).json({ error: "Unauthorized" });
-  return false;
+res.status(401).json({ error: "Unauthorized" });
+return false;
+
 }
 
 
