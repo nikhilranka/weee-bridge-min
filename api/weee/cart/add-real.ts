@@ -3,13 +3,23 @@ import playwright from "playwright-core";
 
 function requireAuth(req: VercelRequest, res: VercelResponse) {
   const auth = (req.headers.authorization || "").replace("Bearer ", "");
-  // If no auth header, fall back to env for trusted internal calls
-if ((!auth || auth !== process.env.ACTIONS_BEARER_TOKEN) && process.env.NODE_ENV !== "development") {
+  const token = process.env.ACTIONS_BEARER_TOKEN;
+
+  // ✅ If no auth header is provided but env token exists, allow
+  if (!auth && token) {
+    return true;
+  }
+
+  // ✅ If auth header matches env token, allow
+  if (auth && auth === token) {
+    return true;
+  }
+
+  // ❌ Otherwise, reject
   res.status(401).json({ error: "Unauthorized" });
   return false;
 }
-  return true;
-}
+
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
