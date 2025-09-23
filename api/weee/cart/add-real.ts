@@ -5,20 +5,15 @@ function requireAuth(req: VercelRequest, res: VercelResponse) {
   const auth = (req.headers.authorization || "").replace("Bearer ", "");
   const token = process.env.ACTIONS_BEARER_TOKEN;
 
-  // ✅ If no auth header is provided but env token exists, allow
-  if (!auth && token) {
-    return true;
-  }
+  console.log("DEBUG requireAuth:", { auth, token, hasAuthHeader: !!req.headers.authorization });
 
-  // ✅ If auth header matches env token, allow
-  if (auth && auth === token) {
-    return true;
-  }
+  if (!auth && token) return true;
+  if (auth && auth === token) return true;
 
-  // ❌ Otherwise, reject
   res.status(401).json({ error: "Unauthorized" });
   return false;
 }
+
 
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
