@@ -28,7 +28,7 @@ async function openBrowser() {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const browser = await playwright.chromium.connect(ws, { timeout: 30000 });
+      const browser = await playwright.chromium.connect(ws, { timeout: 120000 });
       const context = await browser.newContext({
         userAgent:
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36",
