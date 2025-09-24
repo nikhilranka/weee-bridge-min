@@ -144,8 +144,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let browser: playwright.Browser | null = null;
   try {
-   const { browser, context } = await openBrowser();
-
+    const { browser: b, context } = await openBrowser();
+    browser = b;
     const page = await context.newPage();
 
     const hadCookie = await applySessionCookie(context);
@@ -155,16 +155,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const it of items) {
       const q = [it.name, it.unit].filter(Boolean).join(" ").trim();
       const qty = Number(it.qty || 1);
-      try { results.push(await addItem(page, q, qty)); }
-      catch (e: any) { results.push({ added: false, query: q, error: String(e?.message || e) }); }
+      try {
+        results.push(await addItem(page, q, qty));
+      } catch (e: any) {
+        results.push({ added: false, query: q, error: String(e?.message || e) });
+      }
     }
 
-    await page.goto("https://www.sayweee.com/en/cart", { waitUntil: "domcontentloaded" });
-    res.json({ status: "ok", engine: "playwright", cookieApplied: hadCookie, items: results });
+    // 🚫 Removed final cart navigation (less risk of ClientResponseError)
+    res.json({
+      status: "ok",
+      engine: "playwright",
+      cookieApplied: hadCookie,
+      items: results,
+    });
   } catch (err: any) {
-    // You’ll see this in Vercel function logs
-    res.status(500).json({ error: "Automation failed", detail: String(err?.message || err) });
+    console.error("Automation error:", err);
+    res.status(500).json({
+      error: "Automation failed",
+      detail: String(err?.message || err),
+      stack: err?.stack || null,
+    });
   } finally {
-    try { await browser?.close(); } catch {}
+    try {
+      await browser?.close();
+    } catch {}
   }
 }
+
