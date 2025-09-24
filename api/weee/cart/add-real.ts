@@ -11,8 +11,6 @@ function requireAuth(req: VercelRequest, res: VercelResponse) {
     auth = auth.replace(/^Bearer\s+/i, "").trim();
   }
 
-  console.log("DEBUG requireAuth normalized:", { rawAuth, auth, token });
-
   if (!auth && token) return true;
   if (auth && auth === token) return true;
 
@@ -35,7 +33,6 @@ async function openBrowser() {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      // Try standard Playwright WS connect first
       const browser = await playwright.chromium.connect(ws, { timeout: 30000 });
       const context = await browser.newContext({
         userAgent:
@@ -44,7 +41,6 @@ async function openBrowser() {
       return { browser, context };
     } catch (e: any) {
       const msg = String(e?.message || e);
-      // If connect() fails (some Browserless setups prefer CDP), try CDP immediately
       try {
         const browser = await playwright.chromium.connectOverCDP(ws);
         const context = await browser.newContext({
@@ -54,15 +50,13 @@ async function openBrowser() {
         return { browser, context };
       } catch (e2: any) {
         lastErr = e2;
-        // 429 handling: exponential backoff (500ms, 1200ms)
         if (
           /429|Too Many Requests/i.test(msg) ||
           /429|Too Many Requests/i.test(String(e2?.message || e2))
         ) {
-          if (attempt < maxAttempts) await sleep(300 * attempt + 200 * attempt); // ~500ms, ~1.4s
+          if (attempt < maxAttempts) await sleep(300 * attempt + 200 * attempt);
           continue;
         }
-        // Non-429: fail fast
         throw e2;
       }
     }
@@ -105,14 +99,27 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
     await page.keyboard.press("Enter");
     await page.waitForLoadState("domcontentloaded");
 
-    // Pick first result
-    const firstCard = page.locator('[data-testid*="product-card"]').first();
-    if (await firstCard.count() === 0) {
-      return { added: false, query, reason: "No results" };
-    }
-    await firstCard.click();
+    // Find matching product card
+    const productCards = page.locator('[data-testid*="product-card"]');
+    const count = await productCards.count();
 
-    // Try to add, but don’t fail hard on timeout
+    let targetCard = null;
+    for (let i = 0; i < count; i++) {
+      const text = (await productCards.nth(i).textContent())?.toLowerCase() || "";
+      if (text.includes(query.toLowerCase().split(" ")[0])) {
+        targetCard = productCards.nth(i);
+        break;
+      }
+    }
+
+    const cardToClick = targetCard || productCards.first();
+    if (!cardToClick) {
+      return { added: false, query, reason: "No matching product card" };
+    }
+
+    await cardToClick.click();
+
+    // Click add-to-cart
     try {
       const addBtn = page.locator(
         '[data-testid="btn-atc-plus"], [aria-label="add-to-cart"]'
@@ -122,6 +129,7 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
       }
     } catch (e) {
       console.warn("⚠️ Add button click warning:", e);
+      return { added: false, query, error: "Failed to click add button" };
     }
 
     // Increase quantity if needed
@@ -132,23 +140,13 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
           await plusBtn.click({ timeout: 1000 });
           await page.waitForTimeout(120);
         } catch {
-          break; // don’t crash if button not found
+          break;
         }
       }
     }
 
-    // Product title with fallback
-    let title = await page
-      .locator('[data-testid="product-title"]')
-      .first()
-      .textContent()
-      .catch(() => null);
-    if (!title) {
-      title = await page.locator("h1:visible").first().textContent().catch(() => null);
-    }
-    title = title?.trim() || query;
-
-    return { added: true, query, title, qty };
+    // If we reached here, treat as success
+    return { added: true, query, title: query, qty };
   } catch (err: any) {
     return { added: false, query, error: String(err?.message || err) };
   }
@@ -168,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const page = await context.newPage();
 
     const hadCookie = await applySessionCookie(context);
-    await ensureLoggedIn(page); // throws if cookie invalid
+    await ensureLoggedIn(page);
 
     const results = [];
     for (const it of items) {
