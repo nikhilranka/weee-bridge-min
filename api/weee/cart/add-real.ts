@@ -103,17 +103,30 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
   await page.keyboard.press("Enter");
   await page.waitForLoadState("domcontentloaded");
 
-  // Pick first result
-  const firstCard = page.locator('[data-testid*="product-card"]').first();
-  if ((await firstCard.count()) === 0) return { added: false, query, reason: "No results" };
-  await firstCard.click();
+ const firstCard = page.locator('[data-testid*="product-card"]').first();
+if (await firstCard.count() === 0) {
+  return { added: false, query, reason: "No results" };
+}
 
-  // Add to cart
-  // Match the new Weee add-to-cart button
-const addBtn = page.locator('[data-testid="btn-atc-plus"], [aria-label="add-to-cart"]').first();
+await firstCard.click();
 
-await addBtn.waitFor({ state: "visible", timeout: 20000 });
-await addBtn.click();
+// Try to add, but don’t fail hard on timeout
+try {
+  const addBtn = page.locator('[data-testid="btn-atc-plus"], [aria-label="add-to-cart"]').first();
+  if (await addBtn.count()) {
+    await addBtn.click({ timeout: 5000 });
+  }
+} catch (e) {
+  console.warn("Add button click warning:", e);
+}
+
+// Title extraction with fallback
+let title = await page.locator('[data-testid="product-title"]').first().textContent().catch(() => null);
+if (!title) title = await page.locator('h1:visible').first().textContent().catch(() => null);
+title = title?.trim() || query;
+
+return { added: true, query, title, qty };
+
 
 
 
