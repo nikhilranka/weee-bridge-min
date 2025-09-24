@@ -73,7 +73,7 @@ async function ensureLoggedIn(page: playwright.Page) {
 async function addItem(page: playwright.Page, query: string, qty = 1) {
   try {
     const searchSel = 'input[placeholder*="Search"]';
-    await page.waitForSelector(searchSel, { timeout: 15000 });
+    await page.waitForSelector(searchSel, { timeout: 120000 });
     await page.fill(searchSel, query);
     await page.keyboard.press("Enter");
     await page.waitForLoadState("domcontentloaded");
@@ -99,14 +99,14 @@ async function addItem(page: playwright.Page, query: string, qty = 1) {
 
     const addBtn = page.locator('[data-testid="btn-atc-plus"], [aria-label="add-to-cart"]').first();
     if (await addBtn.count()) {
-      await addBtn.click({ timeout: 5000 });
+      await addBtn.click({ timeout: 120000 });
     }
 
     if (qty > 1) {
       const plusBtn = page.locator('button[aria-label*="increase"]').first();
       for (let i = 1; i < qty; i++) {
         try {
-          await plusBtn.click({ timeout: 1000 });
+          await plusBtn.click({ timeout: 120000 });
           await page.waitForTimeout(120);
         } catch {
           break;
