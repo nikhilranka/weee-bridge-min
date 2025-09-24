@@ -28,7 +28,24 @@ async function openBrowser() {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const browser = await playwright.chromium.connect(ws, { timeout: 120000 });
+      console.log(`[openBrowser] Connecting to browserless at: ${ws}`);
+
+try {
+  const browser = await playwright.chromium.connect(ws, { timeout: 120000 });
+  console.log("[openBrowser] ✅ Connected to browserless");
+  
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36",
+  });
+  console.log("[openBrowser] ✅ Context created");
+
+  return { browser, context };
+} catch (err: any) {
+  console.error("[openBrowser] ❌ Failed to connect:", err.message || err);
+  throw err;
+}
+
       const context = await browser.newContext({
         userAgent:
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36",
